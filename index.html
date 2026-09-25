@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartLab · Memecoin Terminal</title>
+<style>
+  :root{
+    --bg:#040408; --panel:#0e0f18; --panel2:#090a12; --border:#22243a;
+    --text:#f2f3fa; --muted:#7d84a0;
+    --green:#00ffb0; --red:#ff2f6d; --yellow:#ffd23f;
+    --p1:#9333ea; --p2:#ec4899; --p3:#22d3ee;
+  }
+  *{box-sizing:border-box;}
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-thumb{background:linear-gradient(var(--p1),var(--p3));border-radius:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::selection{background:var(--p1);color:#fff;}
+  button,.pill,.chain,.segbtn,.ki-btn,.copybtn,.switch,nav button{transition:transform .12s ease, box-shadow .12s ease;}
+  button:active,.pill:active,.chain:active,.segbtn:active,.ki-btn:active,.copybtn:active,nav button:active{transform:scale(.92);}
+  @keyframes bgshift{0%{background-position:0% 0%;}50%{background-position:100% 100%;}100%{background-position:0% 0%;}}
+  @keyframes floaty{0%,100%{transform:translate(0,0);}50%{transform:translate(-15px,10px);}}
+  body{margin:0;color:var(--text);font-family:-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:84px;min-height:100vh;position:relative;overflow-x:hidden;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(147,51,234,.28), transparent 40%),
+      radial-gradient(circle at 90% 15%, rgba(236,72,153,.22), transparent 38%),
+      radial-gradient(circle at 50% 100%, rgba(34,211,238,.18), transparent 45%),
+      radial-gradient(circle at 100% 60%, rgba(0,255,176,.12), transparent 35%),
+      var(--bg);
+    background-size:180% 180%; animation:bgshift 18s ease infinite;}
+  body::before{content:'';position:fixed;top:10%;left:-10%;width:280px;height:280px;border-radius:50%;
+    background:radial-gradient(circle, rgba(147,51,234,.25), transparent 70%);filter:blur(30px);
+    animation:floaty 12s ease-in-out infinite;pointer-events:none;z-index:0;}
+  body::after{content:'';position:fixed;bottom:15%;right:-10%;width:260px;height:260px;border-radius:50%;
+    background:radial-gradient(circle, rgba(34,211,238,.22), transparent 70%);filter:blur(30px);
+    animation:floaty 15s ease-in-out infinite reverse;pointer-events:none;z-index:0;}
+  header,.ticker,.controls,main,nav{position:relative;z-index:1;}
+  header{padding:18px 16px 10px;position:sticky;top:0;z-index:5;backdrop-filter:blur(18px);background:rgba(4,4,8,.55);}
+  .brand{display:flex;justify-content:space-between;align-items:center;}
+  .brand h1{font-size:26px;margin:0;font-weight:900;letter-spacing:-.7px;
+    background:linear-gradient(90deg,var(--p3),var(--green),var(--p2));background-size:200% auto;
+    -webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 4s linear infinite;}
+  @keyframes hue{0%{background-position:0% 50%;}100%{background-position:200% 50%;}}
+  .live-dot{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green);font-weight:700;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green),0 0 24px var(--green);animation:pulse 1.3s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.35;transform:scale(.65);}}
+  .sub{font-size:11px;color:var(--muted);margin-top:3px;letter-spacing:.5px;}
+  .datamode{font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;margin-left:6px;}
+  .datamode.live{background:rgba(0,255,176,.15);color:var(--green);box-shadow:0 0 10px rgba(0,255,176,.3);}
+  .datamode.demo{background:rgba(255,210,63,.15);color:var(--yellow);}
+
+  .ticker{overflow:hidden;white-space:nowrap;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:7px 0;margin:6px 0;
+    background:linear-gradient(90deg, rgba(147,51,234,.06), rgba(34,211,238,.06));backdrop-filter:blur(6px);}
+  .ticker-inner{display:inline-block;padding-left:100%;animation:scroll 22s linear infinite;font-size:11px;}
+  .ticker-inner span{margin-right:26px;color:var(--muted);}
+  .ticker-inner b{color:var(--green);}
+  @keyframes scroll{0%{transform:translateX(0);}100%{transform:translateX(-100%);}}
+
+  .controls{padding:8px 16px;display:flex;gap:8px;flex-wrap:wrap;}
+  .search{flex:1;min-width:140px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 13px;color:var(--text);font-size:13px;}
+  .pill{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 13px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;}
+  .pill.on{border-color:var(--green);color:var(--green);box-shadow:0 0 14px rgba(0,255,176,.25);}
+
+  .chains{padding:2px 16px 12px;display:flex;gap:8px;}
+  .chain{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:13px;color:var(--muted);cursor:pointer;font-weight:700;}
+  .chain.active{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;border-color:transparent;box-shadow:0 0 22px rgba(236,72,153,.4);}
+
+  main{padding:0 16px;max-width:640px;margin:0 auto;}
+  .card{position:relative;background:linear-gradient(180deg, rgba(255,255,255,.045), transparent), rgba(14,15,24,.65);
+    backdrop-filter:blur(14px);
+    border:1px solid var(--border);border-radius:18px;padding:16px;margin-bottom:12px;
+    box-shadow:0 8px 28px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04);
+    transition:box-shadow .2s ease, transform .2s ease;}
+  .card::before{content:'';position:absolute;inset:0;border-radius:18px;padding:1px;pointer-events:none;
+    background:linear-gradient(135deg, rgba(147,51,234,.35), rgba(34,211,238,.08) 40%, transparent 60%);
+    -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude;}
+  h3{margin:0 0 12px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;font-weight:800;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .mini{background:var(--panel2);border:1px solid var(--border);border-radius:13px;padding:12px;text-align:center;}
+  .mini .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
+  .mini .v{font-size:17px;font-weight:900;margin-top:4px;}
+
+  .row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;}
+  .row:last-child{border-bottom:none;}
+  .coin{font-weight:900;font-size:14px;}
+  .tag{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-left:6px;}
+  .sub2{font-size:11px;color:var(--muted);margin-top:2px;}
+  .score{font-weight:900;padding:6px 11px;border-radius:10px;font-size:15px;min-width:36px;text-align:center;}
+  .score.high{background:rgba(0,255,176,.15);color:var(--green);box-shadow:0 0 16px rgba(0,255,176,.35);animation:scoreglow 1.6s ease-in-out infinite;}
+  @keyframes scoreglow{0%,100%{box-shadow:0 0 10px rgba(0,255,176,.25);}50%{box-shadow:0 0 22px rgba(0,255,176,.6);}}
+  .score.mid{background:rgba(255,210,63,.15);color:var(--yellow);}
+  .score.low{background:rgba(255,47,109,.15);color:var(--red);}
+  .pos{color:var(--green);text-shadow:0 0 10px rgba(0,255,176,.4);} .neg{color:var(--red);}
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:24px 0;}
+
+  .wallet{background:var(--panel2);border:1px dashed var(--border);border-radius:9px;padding:9px 10px;font-size:11px;color:var(--p3);margin-top:9px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .wallet span{word-break:break-all;}
+  .copybtn{background:var(--border);color:var(--text);border:none;border-radius:7px;padding:5px 9px;font-size:10px;cursor:pointer;white-space:nowrap;font-weight:700;}
+  .sigcard{position:relative;overflow:hidden;transition:transform .15s ease, box-shadow .15s ease;}
+  .sigcard::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,var(--p1),var(--p3),var(--green));background-size:200% auto;animation:hue 3s linear infinite;}
+  .sigcard:active{transform:scale(.98);box-shadow:0 0 24px rgba(147,51,234,.25);}
+
+  .segbtns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .segbtn{flex:1;min-width:56px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center;font-size:12px;font-weight:800;cursor:pointer;}
+  .segbtn.active{border-color:var(--green);color:var(--green);box-shadow:0 0 14px rgba(0,255,176,.25);}
+
+  .switch-row{display:flex;justify-content:space-between;align-items:center;}
+  .switch{position:relative;width:44px;height:25px;background:var(--border);border-radius:20px;cursor:pointer;flex-shrink:0;}
+  .switch.on{background:linear-gradient(90deg,var(--green),#00c98a);box-shadow:0 0 16px rgba(0,255,176,.4);}
+  .switch::after{content:'';position:absolute;top:2px;left:2px;width:21px;height:21px;background:#fff;border-radius:50%;transition:.2s;}
+  .switch.on::after{left:21px;}
+
+  .bignum{font-size:34px;font-weight:900;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--green),var(--p3));background-size:200% auto;
+    -webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 6s linear infinite;
+    filter:drop-shadow(0 0 14px rgba(0,255,176,.3));}
+  .log{font-size:11px;color:var(--muted);max-height:130px;overflow-y:auto;}
+  .log div{padding:3px 0;}
+  .info{font-size:12px;color:var(--muted);line-height:1.6;}
+  hr.sep{border:none;border-top:1px solid var(--border);margin:16px 0;}
+
+  /* KI-Tab: aufgemotztes Chat-UI */
+  #ki{padding-top:4px;}
+  .ki-title{display:flex;align-items:center;justify-content:center;gap:10px;font-size:22px;font-weight:800;margin:6px 0 16px;text-align:center;color:var(--muted);}
+  .ki-title b{background:linear-gradient(90deg,var(--p1),var(--p3),var(--green));background-size:200% auto;
+    -webkit-background-clip:text;background-clip:text;color:transparent;animation:hue 4s linear infinite;}
+  .ki-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;
+    background:conic-gradient(from 0deg,var(--p1),var(--p3),var(--green),var(--p2),var(--p1));
+    animation:spin 3s linear infinite;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 0 18px rgba(147,51,234,.5);}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes msgin{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .chatbox{min-height:200px;max-height:48vh;overflow-y:auto;padding:4px 2px 14px;font-size:14px;}
+  .msg{margin-bottom:16px;line-height:1.6;animation:msgin .25s ease;}
+  .msg.user{max-width:82%;margin-left:auto;background:linear-gradient(135deg,#1c1e29,#20223a);border:1px solid var(--border);padding:10px 14px;border-radius:16px 16px 4px 16px;}
+  .msg.bot{max-width:100%;color:var(--text);padding:0 2px;display:flex;gap:10px;}
+  .msg.bot .bubble{padding-top:4px;}
+  .msg img{max-width:180px;border-radius:12px;display:block;margin-top:4px;border:1px solid var(--border);}
+  .typing{display:flex;gap:4px;padding:8px 0;}
+  .typing span{width:6px;height:6px;border-radius:50%;background:var(--p3);animation:blink 1s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;} .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,100%{opacity:.2;}50%{opacity:1;}}
+  .ki-rows{border-top:1px solid var(--border);margin-bottom:14px;}
+  .ki-row{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--border);cursor:pointer;}
+  .ki-row .icon{width:26px;text-align:center;font-size:16px;flex-shrink:0;}
+  .ki-row span{font-size:14px;color:var(--text);}
+  .chatinput{position:relative;display:flex;align-items:center;gap:8px;background:#15161f;border-radius:30px;padding:6px 6px 6px 18px;
+    border:1px solid transparent;background-clip:padding-box;}
+  .chatinput::before{content:'';position:absolute;inset:-1.5px;border-radius:30px;z-index:-1;
+    background:linear-gradient(90deg,var(--p1),var(--p3),var(--green),var(--p2));background-size:300% auto;animation:hue 5s linear infinite;}
+  .chatinput input{flex:1;background:none;border:none;color:var(--text);font-size:14px;outline:none;}
+  .chatinput input::placeholder{color:var(--muted);}
+  .ki-btn{width:36px;height:36px;border-radius:50%;background:#242733;border:none;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:15px;}
+  .ki-btn.send{background:linear-gradient(135deg,var(--p1),var(--p3));color:#fff;box-shadow:0 0 14px rgba(147,51,234,.5);}
+  .thumbrow{display:flex;gap:8px;padding:0 4px 8px;}
+  .thumbrow img{width:44px;height:44px;object-fit:cover;border-radius:8px;border:1px solid var(--border);}
+
+  .opt-card{background:linear-gradient(135deg, rgba(147,51,234,.1), rgba(34,211,238,.06)), var(--panel);
+    border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:14px;}
+  .opt-entry{font-size:12px;color:var(--muted);padding:7px 0;border-bottom:1px solid var(--border);line-height:1.5;}
+  .opt-entry:last-child{border-bottom:none;}
+  .opt-entry b{color:var(--green);}
+
+  nav{position:fixed;bottom:0;left:0;right:0;background:rgba(10,11,18,.75);backdrop-filter:blur(20px) saturate(1.4);
+    border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));
+    box-shadow:0 -8px 30px rgba(0,0,0,.5);}
+  nav button{background:none;border:none;color:var(--muted);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;font-weight:700;padding:4px 8px;border-radius:14px;}
+  nav button.active{color:var(--green);text-shadow:0 0 12px rgba(0,255,176,.6);background:rgba(0,255,176,.08);box-shadow:0 0 18px rgba(0,255,176,.15);}
+  nav .ic{font-size:19px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>SmartLab</h1>
+    <div class="live-dot"><div class="dot"></div> <span id="scanLabel">Scan alle 5s</span></div>
+  </div>
+  <div class="sub">SOLANA MEMECOIN TERMINAL · <span id="cntSOL">0</span> gescannt <span class="datamode live" id="dataModeBadge">LIVE</span></div>
+</header>
+
+<div class="ticker"><div class="ticker-inner" id="tickerInner"><span>Bot startet den ersten Scan …</span></div></div>
+
+<div class="controls">
+  <input class="search" placeholder="Suche Symbol / Adresse" id="searchInput">
+  <div class="pill" id="riskFilter">ohne Risiko</div>
+  <div class="pill on" id="alarmToggle">🔔 aktiv</div>
+</div>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="dashboard">
+    <div class="card">
+      <div class="switch-row">
+        <div>
+          <div style="font-weight:800;">Bot-Status</div>
+          <div class="sub2" id="botStatusText">gestoppt</div>
+        </div>
+        <div class="switch" id="botSwitch"></div>
+      </div>
+    </div>
+    <div class="grid2" style="margin-bottom:12px;">
+      <div class="mini"><div class="l">Paper-Wallet</div><div class="v" id="balanceDisplay">2.00 SOL</div></div>
+      <div class="mini"><div class="l">Offene Positionen</div><div class="v" id="openCount">0</div></div>
+      <div class="mini"><div class="l">Coins gescannt</div><div class="v" id="totalScanned">0</div></div>
+      <div class="mini"><div class="l">Trefferquote</div><div class="v" id="hitRate">–</div></div>
+    </div>
+    <div class="card">
+      <h3>Offene Positionen</h3>
+      <div id="openPositions"><div class="empty">Keine offenen Positionen</div></div>
+    </div>
+    <div class="card">
+      <h3>Aktivität</h3>
+      <div class="log" id="activityLog"></div>
+    </div>
+  </section>
+
+  <!-- SIGNALE -->
+  <section id="signale" style="display:none;">
+    <div class="card">
+      <h3>Live-Signale (Top Score zuerst)</h3>
+      <div id="signalList"><div class="empty">Noch keine Signale</div></div>
+    </div>
+  </section>
+
+  <!-- TRADING (Paper-Trading + Stats zusammen) -->
+  <section id="trading" style="display:none;">
+    <div class="card">
+      <h3>Positionsgröße pro Trade</h3>
+      <div class="segbtns" id="sizeButtons">
+        <div class="segbtn" data-size="0.1">0.1</div>
+        <div class="segbtn" data-size="0.2">0.2</div>
+        <div class="segbtn" data-size="0.3">0.3</div>
+        <div class="segbtn" data-size="0.4">0.4</div>
+        <div class="segbtn active" data-size="0.5">0.5</div>
+      </div>
+      <div class="bignum" id="ptBalance">2.00 SOL</div>
+      <div class="sub2" id="ptPnl">+0.00 SOL · +0% seit Start</div>
+    </div>
+    <div class="grid3" style="margin-bottom:12px;">
+      <div class="mini"><div class="l">Gewinn-Trades</div><div class="v pos" id="winCount">0</div></div>
+      <div class="mini"><div class="l">Verlust-Trades</div><div class="v neg" id="lossCount">0</div></div>
+      <div class="mini"><div class="l">Ø / Trade</div><div class="v" id="avgPnl">0.00</div></div>
+    </div>
+    <div class="card info">
+      Kauf bei jedem Signal mit Score ≥ <b id="thresholdLabel2">70</b>, Positionsgröße wie oben gewählt. Verkauf simuliert bei +<span id="tpLabel">60</span>% Gewinn, <span id="slLabel">-20</span>% Verlust oder nach <span id="toLabel">15</span> Min · Werte werden vom Bot selbst nachjustiert (siehe KI-Tab) · reine Simulation, kein echtes Geld.
+    </div>
+    <div class="card">
+      <h3>Schwelle anpassen</h3>
+      <input type="range" min="50" max="90" value="70" id="thresholdSlider" style="width:100%;">
+      <div class="sub2" style="text-align:center;margin-top:4px;">Score ≥ <span id="thresholdVal">70</span></div>
+    </div>
+
+    <hr class="sep">
+
+    <div class="card">
+      <h3>Performance (Stats)</h3>
+      <div class="bignum" id="totalPnlBig">+0.00 SOL</div>
+      <div class="sub2" id="totalPnlPct">+0% Gesamt</div>
+    </div>
+    <div class="grid3" style="margin-bottom:12px;">
+      <div class="mini"><div class="l">Heute</div><div class="v" id="statToday">+0</div></div>
+      <div class="mini"><div class="l">7 Tage</div><div class="v" id="stat7d">+0</div></div>
+      <div class="mini"><div class="l">Max. Drawdown</div><div class="v neg" id="statDD">0%</div></div>
+    </div>
+    <div class="card">
+      <h3>Qualität</h3>
+      <div class="grid3">
+        <div class="mini"><div class="l">Trefferquote</div><div class="v" id="qHit">–</div></div>
+        <div class="mini"><div class="l">Ø Gewinn</div><div class="v pos" id="qWin">–</div></div>
+        <div class="mini"><div class="l">Ø Verlust</div><div class="v neg" id="qLoss">–</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Trade-Historie</h3>
+      <div id="tradeHistory"><div class="empty">Noch keine abgeschlossenen Trades</div></div>
+    </div>
+  </section>
+
+  <!-- KI -->
+  <section id="ki" style="display:none;">
+    <div class="ki-title"><div class="ki-avatar">🧠</div>Memecoin<b>-KI</b></div>
+
+    <div class="opt-card">
+      <h3 style="margin-bottom:8px;">🤖 Selbstoptimierung — lernt aus eigenen Trades</h3>
+      <div class="sub2" style="margin-bottom:8px;">Analysiert automatisch abgeschlossene Bot-Trades und passt Schwelle/Stop-Loss/Timeout an — einfache regelbasierte Selbstjustierung, kein neuronales Netz.</div>
+      <div id="optLog"><div class="opt-entry">Noch keine Anpassungen — braucht ein paar abgeschlossene Trades.</div></div>
+    </div>
+
+    <div class="chatbox" id="chatbox"></div>
+    <div class="thumbrow" id="pendingImgRow" style="display:none;"></div>
+
+    <div class="ki-rows" id="kiRows">
+      <div class="ki-row" onclick="askSuggest('Wie funktioniert der Score?')"><span class="icon">📊</span><span>Score-Logik erklären</span></div>
+      <div class="ki-row" onclick="askSuggest('Wie erkenne ich sichere Coins?')"><span class="icon">🛡️</span><span>Sichere Coins erkennen</span></div>
+      <div class="ki-row" onclick="askSuggest('Was ist ein Rug Pull?')"><span class="icon">🕳️</span><span>Rug Pull prüfen</span></div>
+      <div class="ki-row" onclick="askSuggest('Was hat der Bot zuletzt verbessert?')"><span class="icon">🛠️</span><span>Was hat der Bot verbessert?</span></div>
+    </div>
+
+    <input type="file" id="imgFileInput" accept="image/*" multiple style="display:none;">
+    <div class="chatinput">
+      <button class="ki-btn" onclick="document.getElementById('imgFileInput').click()">+</button>
+      <input id="chatInput" placeholder="Memecoin-KI fragen oder Chart-Bild senden">
+      <button class="ki-btn send" onclick="sendChat()">➤</button>
+    </div>
+  </section>
+
+</main>
+
+<nav>
+  <button data-tab="dashboard" class="active"><span class="ic">🏠</span>Dashboard</button>
+  <button data-tab="signale"><span class="ic">📡</span>Signale</button>
+  <button data-tab="trading"><span class="ic">📈</span>Trading</button>
+  <button data-tab="ki"><span class="ic">🧠</span>KI</button>
+</nav>
+
+<script>
+const STORAGE_KEY = "smartlab_state_v3";
+let state = load() || {
+  balance: 2.0, startBalance: 2.0, botRunning: false, threshold: 70, tradeSize: 0.5,
+  positions: [], history: [], signals: [], log: [], totalScanned: 0,
+  stopLossPct: -20, takeProfitPct: 60, timeoutMin: 15, improvements: []
+};
+if(state.stopLossPct===undefined) state.stopLossPct=-20;
+if(state.takeProfitPct===undefined) state.takeProfitPct=60;
+if(state.timeoutMin===undefined) state.timeoutMin=15;
+if(state.improvements===undefined) state.improvements=[];
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
+function logMsg(m){ state.log.unshift(new Date().toLocaleTimeString()+" — "+m); state.log=state.log.slice(0,40); }
+
+document.querySelector('nav').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ['dashboard','signale','trading','ki'].forEach(id=>{
+    document.getElementById(id).style.display = (id===btn.dataset.tab)?'block':'none';
+  });
+});
+document.getElementById('riskFilter').addEventListener('click', e=>e.target.classList.toggle('on'));
+document.getElementById('alarmToggle').addEventListener('click', e=>e.target.classList.toggle('on'));
+document.getElementById('sizeButtons').addEventListener('click', e=>{
+  const b=e.target.closest('.segbtn'); if(!b) return;
+  document.querySelectorAll('.segbtn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  state.tradeSize = parseFloat(b.dataset.size); save();
+});
+function copyText(t){ navigator.clipboard && navigator.clipboard.writeText(t); }
+
+// ---- KI Wissens-Assistent (lokal, regelbasiert) ----
+const KI_KB = [
+  {k:['rug','rug pull'], a:"Ein Rug Pull ist, wenn die Entwickler eines Coins plötzlich die Liquidität abziehen oder alle ihre Token verkaufen — der Preis stürzt auf nahe 0. Warnzeichen: sehr niedrige/nicht gelockte Liquidität, anonymes Team, Top-Wallet hält >20% der Supply."},
+  {k:['score','bewertung','wie funktioniert der score'], a:"Der Score (0–100) im Bot setzt sich zusammen aus: Liquidität (mehr = sicherer), Volumen im Verhältnis zur Marktkapitalisierung (echte Handelsaktivität), kurzfristiges Momentum, Alter des Tokens (zu neu = riskanter) und dem Käufer/Verkäufer-Verhältnis. Ab dem eingestellten Schwellenwert löst er ein Kauf-Signal aus."},
+  {k:['honeypot'], a:"Ein Honeypot ist ein Coin, den man kaufen, aber nicht wieder verkaufen kann — im Smart Contract eingebaut. Ein Contract-Checker (z. B. auf Solscan/Honeypot-Detector-Seiten) hilft, das vor dem Kauf zu prüfen."},
+  {k:['liquidität','liquidity'], a:"Liquidität ist das Kapital im Handelspool. Niedrige Liquidität heißt: schon kleine Käufe/Verkäufe bewegen den Preis stark, und ein Ausstieg der Entwickler wirkt sich extrem aus. Gesperrte ('locked') Liquidität ist ein positives Zeichen."},
+  {k:['marktkapitalisierung','market cap','mcap','fdv'], a:"Marktkapitalisierung = Preis × zirkulierende Supply, FDV = Preis × Gesamt-Supply (auch nicht freigeschaltete Token). Bei Memecoins oft sehr volatil und wenig aussagekräftig ohne Liquiditäts-Kontext."},
+  {k:['sicher','sicherheit','erkenne','worauf achten'], a:"Grobe Checkliste: gesperrte/verbrannte Liquidität, verifizierter/renounced Contract, keine extreme Wallet-Konzentration, organisches Volumen statt Wash-Trading, aktive echte Community statt reinen Bot-Kommentaren. Trotzdem bleibt jeder Memecoin hochriskant."},
+  {k:['stop loss', 'stoploss'], a:"Ein Stop-Loss verkauft automatisch, wenn der Verlust eine Schwelle erreicht (im Bot z. B. −20%), um größere Verluste zu begrenzen."},
+  {k:['take profit'], a:"Take-Profit verkauft automatisch bei einem festgelegten Gewinn (im Bot z. B. +60%), um Gewinne zu sichern, bevor der Preis wieder fällt."},
+  {k:['pump.fun','bonding curve'], a:"Bonding-Curve-Plattformen wie pump.fun lassen jeden ohne Coding einen Token launchen; der Preis folgt einer festen Kurve, bis genug Kapital für einen DEX-Pool erreicht ist. Sehr hohes Rug- und Volatilitätsrisiko wegen fehlender Prüfung."},
+  {k:['wash trading'], a:"Wash Trading heißt, dass jemand künstlich gegen sich selbst handelt, um Volumen vorzutäuschen. Achte auf unrealistisch hohes Volumen bei wenigen Wallets."},
+  {k:['diversifikation','diversifizieren'], a:"Bei hochriskanten Memecoins ist Diversifikation über viele kleine Positionen (statt alles auf einen Coin) eine gängige Methode, um Einzel-Rug-Risiko abzufedern — Gesamtrisiko bleibt trotzdem hoch."},
+];
+function answerKI(q){
+  const ql = q.toLowerCase();
+  if(ql.includes('verbessert') || ql.includes('optimier') || ql.includes('gelernt')){
+    if(!state.improvements.length) return "Bisher hat der Bot noch keine Trades genug abgeschlossen, um etwas anzupassen. Sobald ein paar Trades durch sind, justiert er Schwelle, Stop-Loss und Timeout automatisch nach — schau in die Box oben.";
+    return "Letzte Anpassungen:\n" + state.improvements.slice(0,5).map(i=>"• "+i.msg).join("\n");
+  }
+  for(const item of KI_KB){ if(item.k.some(kw=>ql.includes(kw))) return item.a; }
+  return "Dazu habe ich keine feste Antwort in meiner lokalen Wissensbasis. Ich bin ein einfacher regelbasierter Assistent (keine echte KI-Anbindung) — versuch's z. B. mit Rug Pull, Score, Honeypot, Liquidität, Stop-Loss oder Marktkapitalisierung.";
+}
+let pendingImages = [];
+function addMsg(text, cls, imgs){
+  const box = document.getElementById('chatbox');
+  const d = document.createElement('div'); d.className='msg '+cls;
+  if(cls==='bot'){
+    d.innerHTML = '<div class="ki-avatar" style="width:26px;height:26px;font-size:11px;">🧠</div><div class="bubble"></div>';
+    d.querySelector('.bubble').textContent = text;
+  } else {
+    d.textContent = text;
+  }
+  (imgs||[]).forEach(src=>{ const img=document.createElement('img'); img.src=src; d.appendChild(img); });
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+  return d;
+}
+function showTyping(){
+  const box = document.getElementById('chatbox');
+  const d = document.createElement('div'); d.className='msg bot'; d.id='typingIndicator';
+  d.innerHTML = '<div class="ki-avatar" style="width:26px;height:26px;font-size:11px;">🧠</div><div class="typing"><span></span><span></span><span></span></div>';
+  box.appendChild(d); box.scrollTop = box.scrollHeight;
+}
+function hideTyping(){ const t=document.getElementById('typingIndicator'); if(t) t.remove(); }
+
+document.getElementById('imgFileInput').addEventListener('change', e=>{
+  [...e.target.files].forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      pendingImages.push(ev.target.result);
+      const row = document.getElementById('pendingImgRow');
+      row.style.display='flex';
+      const img = document.createElement('img'); img.src=ev.target.result; row.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value='';
+});
+
+function sendChat(){
+  const inp = document.getElementById('chatInput');
+  const val = inp.value.trim();
+  if(!val && !pendingImages.length) return;
+  document.getElementById('kiRows').style.display='none';
+  const imgsToSend = pendingImages;
+  pendingImages = [];
+  document.getElementById('pendingImgRow').innerHTML=''; document.getElementById('pendingImgRow').style.display='none';
+  addMsg(val || '(Bild gesendet)', 'user', imgsToSend); inp.value='';
+  showTyping();
+  setTimeout(()=>{
+    hideTyping();
+    if(imgsToSend.length && !val){
+      addMsg("Ich sehe das Bild, aber ohne angebundene Bild-KI (kein API-Key im Frontend) kann ich seinen Inhalt nicht wirklich analysieren — beschreib mir kurz, was drauf ist, dann helfe ich mit Einschätzung.", 'bot');
+    } else {
+      addMsg(answerKI(val), 'bot');
+    }
+  }, 500);
+}
+function askSuggest(q){ document.getElementById('chatInput').value=q; sendChat(); }
+addMsg("Frag mich etwas über Memecoins — Rug Pulls, Score-Logik, Honeypots, Liquidität oder Sicherheit.",'bot');
+document.getElementById('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter') sendChat(); });
+
+// ---- Scoring ----
+function scoreCoin(c){
+  let s=0;
+  s += Math.min(c.liquidity/20000,1)*25;
+  const volRatio = c.mcap>0 ? c.volume24h/c.mcap : 0;
+  s += Math.min(volRatio*1.5,1)*25;
+  s += Math.max(-1,Math.min(c.change1h/25,1))*20;
+  s += c.ageHours<1?4 : c.ageHours<72?15:8;
+  s += Math.min(c.buySellRatio/2.5,1)*15;
+  return Math.max(0,Math.min(100,Math.round(s)));
+}
+
+// ---- Real data from DexScreener, up to 50 coins per scan ----
+async function fetchTokenChunk(addrs){
+  const res = await fetch('https://api.dexscreener.com/latest/dex/tokens/'+addrs.join(','));
+  if(!res.ok) throw new Error('pair fetch failed');
+  const data = await res.json();
+  return (data.pairs||[]).filter(p=>p.chainId==='solana');
+}
+async function fetchRealCoins(){
+  try{
+    const boostRes = await fetch('https://api.dexscreener.com/token-boosts/latest/v1');
+    if(!boostRes.ok) throw new Error('boost fetch failed');
+    const boosts = await boostRes.json();
+    const solAddrs = [...new Set(boosts.filter(b=>b.chainId==='solana').map(b=>b.tokenAddress))].slice(0,50);
+    if(!solAddrs.length) throw new Error('no sol addresses');
+    const chunks = [];
+    for(let i=0;i<solAddrs.length;i+=30) chunks.push(solAddrs.slice(i,i+30));
+    const results = await Promise.all(chunks.map(fetchTokenChunk));
+    const pairs = results.flat();
+    const seen = new Set(); const coins=[];
+    pairs.forEach(p=>{
+      if(seen.has(p.baseToken.address)) return; seen.add(p.baseToken.address);
+      coins.push({
+        symbol: p.baseToken.symbol || '???', address: p.baseToken.address,
+        liquidity: p.liquidity?.usd || 0, mcap: p.fdv || p.marketCap || 1,
+        volume24h: p.volume?.h24 || 0, change1h: p.priceChange?.h1 || 0,
+        ageHours: p.pairCreatedAt ? (Date.now()-p.pairCreatedAt)/3600000 : 200,
+        buySellRatio: p.txns?.h1 ? (p.txns.h1.buys/(Math.max(1,p.txns.h1.sells))) : 1,
+        price: parseFloat(p.priceUsd)||0
+      });
+    });
+    return coins.length ? coins.slice(0,50) : null;
+  }catch(e){ return null; }
+}
+function fakeAddr(){
+  const chars="123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let s=""; for(let i=0;i<10;i++) s+=chars[Math.floor(Math.random()*chars.length)];
+  return s+"pump";
+}
+const NAME_PARTS = ["PEPE","DOGE","MOON","INU","ELON","BONK","FLOKI","WOJAK","CHAD","BASED","GIGA","TURBO"];
+function demoBatch(){
+  return Array.from({length:20}, ()=>{
+    const n1=NAME_PARTS[Math.floor(Math.random()*NAME_PARTS.length)];
+    const n2=NAME_PARTS[Math.floor(Math.random()*NAME_PARTS.length)];
+    const liquidity=Math.round(Math.random()*15000+500);
+    const mcap=Math.round(liquidity*(Math.random()*8+2));
+    return {symbol:(n1+n2).slice(0,10), address:fakeAddr(), liquidity, mcap,
+      volume24h:Math.round(mcap*(Math.random()*1.5)), change1h:+(Math.random()*40-15).toFixed(1),
+      ageHours:Math.round(Math.random()*72), buySellRatio:+(Math.random()*4).toFixed(2), price:+(Math.random()*0.01).toFixed(8)};
+  });
+}
+
+async function runScan(){
+  let coins = await fetchRealCoins();
+  const badge = document.getElementById('dataModeBadge');
+  if(coins){ badge.textContent='LIVE'; badge.className='datamode live'; }
+  else { coins = demoBatch(); badge.textContent='DEMO'; badge.className='datamode demo'; }
+  coins.forEach(c=>{ c.score=scoreCoin(c); c.time=new Date().toLocaleTimeString(); });
+  state.totalScanned += coins.length;
+  coins.sort((a,b)=>b.score-a.score);
+  coins.forEach(c=>{
+    const sig={symbol:c.symbol, score:c.score, time:c.time, address:c.address,
+      liquidity:Math.round(c.liquidity), mcap:Math.round(c.mcap), action: c.score>=state.threshold?"KAUF":"ignoriert"};
+    state.signals.unshift(sig);
+    if(c.score>=state.threshold && state.botRunning) openPosition(c);
+  });
+  state.signals = state.signals.slice(0,80);
+  const ticker = document.getElementById('tickerInner');
+  ticker.innerHTML = coins.slice(0,15).map(c=>`<span>${c.symbol} <b>${c.score}</b></span>`).join('');
+  logMsg(`Scan: ${coins.length} Coins geprüft (${badge.textContent})`);
+  save(); render();
+}
+function openPosition(c){
+  if(state.positions.find(p=>p.symbol===c.symbol)) return;
+  const size = state.tradeSize;
+  if(state.balance < size){ logMsg(`Zu wenig Balance für ${c.symbol}`); return; }
+  state.balance -= size;
+  state.positions.push({symbol:c.symbol, entryPrice:c.price, size, score:c.score, openedAt:Date.now()});
+  logMsg(`Gekauft: ${c.symbol} für ${size} SOL (Score ${c.score})`);
+}
+function tickPositions(){
+  const stillOpen=[];
+  state.positions.forEach(p=>{
+    const heldMin=(Date.now()-p.openedAt)/60000;
+    const drift=(Math.random()-0.45)*0.5;
+    p.pnlPct=(p.pnlPct||0)+drift*10;
+    const tp=p.pnlPct>=state.takeProfitPct, sl=p.pnlPct<=state.stopLossPct, to=heldMin>state.timeoutMin;
+    if(tp||sl||to){
+      const pnl=+(p.size*(p.pnlPct/100)).toFixed(4);
+      state.balance += p.size+pnl;
+      state.history.unshift({symbol:p.symbol, size:p.size, pnl, pnlPct:p.pnlPct.toFixed(1),
+        reason: tp?"Take-Profit":sl?"Stop-Loss":"Timeout", closedAt:new Date().toLocaleTimeString(), day:new Date().toDateString()});
+      logMsg(`Verkauft: ${p.symbol} (${pnl>=0?'+':''}${pnl} SOL, ${tp?'TP':sl?'SL':'Timeout'})`);
+    } else stillOpen.push(p);
+  });
+  state.positions=stillOpen;
+  if(state.history.length && state.history.length % 5 === 0) autoImprove();
+  save(); render();
+}
+
+// ---- Selbstoptimierung: regelbasierte Analyse der letzten Trades ----
+function autoImprove(){
+  const recent = state.history.slice(0,10);
+  if(recent.length < 5) return;
+  const wins = recent.filter(h=>h.pnl>0).length;
+  const winRate = wins/recent.length;
+  const slCount = recent.filter(h=>h.reason==='Stop-Loss').length;
+  const toCount = recent.filter(h=>h.reason==='Timeout').length;
+  let changed = false;
+
+  if(winRate < 0.35 && state.threshold < 88){
+    state.threshold += 2; changed = true;
+    pushImprovement(`Trefferquote nur ${Math.round(winRate*100)}% bei den letzten ${recent.length} Trades → Schwelle auf ${state.threshold} erhöht, wähle wählerischer aus.`);
+  } else if(winRate > 0.6 && state.threshold > 55){
+    state.threshold -= 1; changed = true;
+    pushImprovement(`Gute Trefferquote (${Math.round(winRate*100)}%) → Schwelle leicht auf ${state.threshold} gesenkt, um mehr Chancen mitzunehmen.`);
+  }
+  if(slCount/recent.length > 0.5 && state.stopLossPct < -8){
+    state.stopLossPct += 3; changed = true;
+    pushImprovement(`Viele Stop-Loss-Ausstiege (${slCount}/${recent.length}) → Stop-Loss auf ${state.stopLossPct.toFixed(0)}% verengt, um Verluste früher zu begrenzen.`);
+  }
+  if(toCount/recent.length > 0.5 && state.timeoutMin > 6){
+    state.timeoutMin -= 2; changed = true;
+    pushImprovement(`Viele Trades liefen nur ins Timeout (${toCount}/${recent.length}) → Haltezeit auf ${state.timeoutMin} Min verkürzt.`);
+  }
+  if(changed){ document.getElementById('thresholdSlider').value = state.threshold; save(); render(); }
+}
+function pushImprovement(msg){
+  state.improvements.unshift({time:new Date().toLocaleTimeString(), msg});
+  state.improvements = state.improvements.slice(0,20);
+  logMsg("🤖 Selbstoptimierung: "+msg);
+}
+let scanInt=null, tickInt=null;
+function setBotRunning(on){
+  state.botRunning=on;
+  if(on){ logMsg("Bot gestartet"); runScan(); scanInt=setInterval(runScan,5000); tickInt=setInterval(tickPositions,4000); }
+  else { logMsg("Bot gestoppt"); clearInterval(scanInt); clearInterval(tickInt); }
+  save(); render();
+}
+document.getElementById('botSwitch').addEventListener('click', ()=>setBotRunning(!state.botRunning));
+document.getElementById('thresholdSlider').addEventListener('input', e=>{
+  state.threshold=+e.target.value;
+  document.getElementById('thresholdVal').textContent=state.threshold;
+  document.getElementById('thresholdLabel2').textContent=state.threshold;
+  save();
+});
+
+function scoreClass(s){ return s>=70?'high':s>=50?'mid':'low'; }
+
+function render(){
+  document.getElementById('cntSOL').textContent = state.totalScanned;
+  document.getElementById('totalScanned').textContent = state.totalScanned;
+  document.getElementById('balanceDisplay').textContent = state.balance.toFixed(2)+" SOL";
+  document.getElementById('ptBalance').textContent = state.balance.toFixed(2)+" SOL";
+  document.getElementById('botSwitch').className = 'switch'+(state.botRunning?' on':'');
+  document.getElementById('botStatusText').textContent = state.botRunning?'läuft — scannt live':'gestoppt';
+  document.getElementById('thresholdSlider').value = state.threshold;
+  document.getElementById('thresholdVal').textContent = state.threshold;
+  document.getElementById('thresholdLabel2').textContent = state.threshold;
+  document.getElementById('tpLabel').textContent = state.takeProfitPct;
+  document.getElementById('slLabel').textContent = state.stopLossPct;
+  document.getElementById('toLabel').textContent = state.timeoutMin;
+  document.querySelectorAll('.segbtn').forEach(b=>b.classList.toggle('active', parseFloat(b.dataset.size)===state.tradeSize));
+
+  document.getElementById('openCount').textContent = state.positions.length;
+
+  const wins = state.history.filter(h=>h.pnl>0).length;
+  const losses = state.history.filter(h=>h.pnl<=0).length;
+  const hitRateVal = state.history.length? Math.round(wins/state.history.length*100)+"%" : "–";
+  document.getElementById('hitRate').textContent = hitRateVal;
+  document.getElementById('qHit').textContent = hitRateVal;
+
+  const totalPnl = state.history.reduce((a,h)=>a+h.pnl,0);
+  const pctOfStart = state.startBalance? (totalPnl/state.startBalance*100).toFixed(1):0;
+  document.getElementById('ptPnl').textContent = (totalPnl>=0?'+':'')+totalPnl.toFixed(3)+" SOL · "+(totalPnl>=0?'+':'')+pctOfStart+"% seit Start";
+  document.getElementById('totalPnlBig').textContent = (totalPnl>=0?'+':'')+totalPnl.toFixed(3)+" SOL";
+  document.getElementById('totalPnlPct').textContent = (totalPnl>=0?'+':'')+pctOfStart+"% Gesamt";
+
+  const today = new Date().toDateString();
+  const todayPnl = state.history.filter(h=>h.day===today).reduce((a,h)=>a+h.pnl,0);
+  document.getElementById('statToday').textContent = (todayPnl>=0?'+':'')+todayPnl.toFixed(3);
+  document.getElementById('stat7d').textContent = (totalPnl>=0?'+':'')+totalPnl.toFixed(3);
+  const worst = state.history.reduce((m,h)=>Math.min(m,h.pnlPct),0);
+  document.getElementById('statDD').textContent = worst.toFixed(1)+"%";
+
+  const winsArr = state.history.filter(h=>h.pnl>0), lossArr = state.history.filter(h=>h.pnl<=0);
+  const avgWin = winsArr.length? (winsArr.reduce((a,h)=>a+h.pnl,0)/winsArr.length):0;
+  const avgLoss = lossArr.length? (lossArr.reduce((a,h)=>a+h.pnl,0)/lossArr.length):0;
+  document.getElementById('qWin').textContent = winsArr.length? '+'+avgWin.toFixed(3):'–';
+  document.getElementById('qLoss').textContent = lossArr.length? avgLoss.toFixed(3):'–';
+  document.getElementById('winCount').textContent = wins;
+  document.getElementById('lossCount').textContent = losses;
+  const avg = state.history.length? totalPnl/state.history.length : 0;
+  document.getElementById('avgPnl').textContent = (avg>=0?'+':'')+avg.toFixed(3);
+
+  const opEl = document.getElementById('openPositions');
+  opEl.innerHTML = state.positions.length ? state.positions.map(p=>`
+    <div class="row">
+      <div><div class="coin">${p.symbol}<span class="tag">SOL</span></div><div class="sub2">${p.size} SOL · Score ${p.score}</div></div>
+      <div class="${(p.pnlPct||0)>=0?'pos':'neg'}">${(p.pnlPct||0)>=0?'+':''}${(p.pnlPct||0).toFixed(1)}%</div>
+    </div>`).join('') : '<div class="empty">Keine offenen Positionen</div>';
+
+  document.getElementById('activityLog').innerHTML = state.log.map(l=>`<div>${l}</div>`).join('') || '<div class="empty">Kein Verlauf</div>';
+
+  const sigEl = document.getElementById('signalList');
+  sigEl.innerHTML = state.signals.length ? state.signals.slice(0,30).map(s=>`
+    <div class="card sigcard" style="margin-bottom:8px;padding:12px;">
+      <div class="row" style="border:none;padding:0 0 6px;">
+        <div><div class="coin">${s.symbol}<span class="tag">SOL</span></div><div class="sub2">${s.time} · Liq $${s.liquidity.toLocaleString()} · MCap $${s.mcap.toLocaleString()}</div></div>
+        <div class="score ${scoreClass(s.score)}">${s.score}</div>
+      </div>
+      <div class="sub2">${s.action}</div>
+      <div class="wallet"><span>${s.address}</span><button class="copybtn" onclick="copyText('${s.address}')">kopieren</button></div>
+    </div>`).join('') : '<div class="empty">Noch keine Signale</div>';
+
+  const optEl = document.getElementById('optLog');
+  if(optEl){
+    optEl.innerHTML = state.improvements.length ? state.improvements.slice(0,8).map(i=>`
+      <div class="opt-entry"><b>${i.time}</b> — ${i.msg}</div>`).join('') :
+      '<div class="opt-entry">Noch keine Anpassungen — braucht ein paar abgeschlossene Trades.</div>';
+  }
+
+  const histEl = document.getElementById('tradeHistory');
+  histEl.innerHTML = state.history.length ? state.history.map(h=>`
+    <div class="row">
+      <div><div class="coin">${h.symbol}</div><div class="sub2">${h.reason} · ${h.closedAt}</div></div>
+      <div class="${h.pnl>=0?'pos':'neg'}">${h.pnl>=0?'+':''}${h.pnl.toFixed(3)} SOL</div>
+    </div>`).join('') : '<div class="empty">Noch keine abgeschlossenen Trades</div>';
+}
+
+render();
+if(state.botRunning) setBotRunning(true);
+</script>
+</body>
+</html>
