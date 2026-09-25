@@ -170,6 +170,30 @@
   nav button{background:none;border:none;color:var(--muted);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;font-weight:700;padding:4px 8px;border-radius:14px;}
   nav button.active{color:var(--green);text-shadow:0 0 12px rgba(0,255,176,.6);background:rgba(0,255,176,.08);box-shadow:0 0 18px rgba(0,255,176,.15);}
   nav .ic{font-size:19px;}
+
+  .actrow{display:flex;gap:7px;margin-top:9px;}
+  .actbtn{flex:1;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 6px;font-size:11px;font-weight:800;cursor:pointer;text-align:center;}
+  .actbtn.buy{border-color:var(--green);color:var(--green);}
+  .actbtn.buy:active{background:rgba(0,255,176,.15);}
+  .actbtn.sell{border-color:var(--red);color:var(--red);}
+  .actbtn.sell:active{background:rgba(255,47,109,.15);}
+  .actbtn.chart{border-color:var(--p3);color:var(--p3);}
+  .actbtn.chart:active{background:rgba(34,211,238,.15);}
+  .actbtn:disabled{opacity:.4;}
+
+  .filterbar{display:flex;align-items:center;gap:10px;}
+  .filterbar input[type=range]{flex:1;}
+  .filterbar .fval{font-weight:900;color:var(--green);min-width:26px;text-align:right;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:50;display:none;align-items:flex-end;justify-content:center;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:18px 18px 0 0;width:100%;max-width:640px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 -10px 40px rgba(0,0,0,.6);}
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);}
+  .modal-head b{font-size:14px;}
+  .modal-close{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:30px;height:30px;font-size:15px;cursor:pointer;}
+  .modal-body{flex:1;overflow:hidden;position:relative;min-height:360px;}
+  .modal-body iframe{width:100%;height:100%;border:0;position:absolute;inset:0;}
+  .modal-body .empty{padding:40px 16px;}
 </style>
 </head>
 <body>
@@ -222,10 +246,26 @@
   <!-- SIGNALE -->
   <section id="signale" style="display:none;">
     <div class="card">
+      <h3>Score-Filter</h3>
+      <div class="filterbar">
+        <input type="range" min="0" max="100" value="50" id="scoreFilterSlider">
+        <span class="fval" id="scoreFilterVal">50</span>
+      </div>
+      <div class="sub2" style="margin-top:6px;">Zeigt alle gescannten Coins mit Score ≥ <span id="scoreFilterVal2">50</span> — aktuell <span id="scoreFilterCount">0</span> Treffer.</div>
+    </div>
+    <div class="card">
       <h3>Live-Signale (Top Score zuerst)</h3>
       <div id="signalList"><div class="empty">Noch keine Signale</div></div>
     </div>
   </section>
+
+  <!-- CHART MODAL -->
+  <div class="modal-overlay" id="chartModal">
+    <div class="modal-box">
+      <div class="modal-head"><b id="chartModalTitle">Chart</b><button class="modal-close" onclick="closeChart()">✕</button></div>
+      <div class="modal-body" id="chartModalBody"></div>
+    </div>
+  </div>
 
   <!-- TRADING (Paper-Trading + Stats zusammen) -->
   <section id="trading" style="display:none;">
@@ -323,12 +363,14 @@ const STORAGE_KEY = "smartlab_state_v3";
 let state = load() || {
   balance: 2.0, startBalance: 2.0, botRunning: false, threshold: 70, tradeSize: 0.5,
   positions: [], history: [], signals: [], log: [], totalScanned: 0,
-  stopLossPct: -20, takeProfitPct: 60, timeoutMin: 15, improvements: []
+  stopLossPct: -20, takeProfitPct: 20, timeoutMin: 15, improvements: [], scoreFilter: 50
 };
 if(state.stopLossPct===undefined) state.stopLossPct=-20;
-if(state.takeProfitPct===undefined) state.takeProfitPct=60;
+state.takeProfitPct = 20; // Take-Profit fix auf +20% (vorher 60% — Positionen liefen zu lange, bevor verkauft wurde)
 if(state.timeoutMin===undefined) state.timeoutMin=15;
 if(state.improvements===undefined) state.improvements=[];
+if(state.scoreFilter===undefined) state.scoreFilter=50;
+let priceMap = {}; // address -> latest real price from most recent scan (not persisted)
 function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
 function logMsg(m){ state.log.unshift(new Date().toLocaleTimeString()+" — "+m); state.log=state.log.slice(0,40); }
@@ -350,6 +392,45 @@ document.getElementById('sizeButtons').addEventListener('click', e=>{
   state.tradeSize = parseFloat(b.dataset.size); save();
 });
 function copyText(t){ navigator.clipboard && navigator.clipboard.writeText(t); }
+
+document.getElementById('scoreFilterSlider').addEventListener('input', e=>{
+  state.scoreFilter = +e.target.value;
+  document.getElementById('scoreFilterVal').textContent = state.scoreFilter;
+  document.getElementById('scoreFilterVal2').textContent = state.scoreFilter;
+  save(); render();
+});
+
+// ---- Chart-Overlay (echter DexScreener-Chart je Coin) ----
+function openChart(pairAddress, symbol){
+  document.getElementById('chartModalTitle').textContent = symbol ? symbol+' · Chart' : 'Chart';
+  const body = document.getElementById('chartModalBody');
+  if(pairAddress){
+    body.innerHTML = `<iframe src="https://dexscreener.com/solana/${pairAddress}?embed=1&theme=dark&trades=0" loading="lazy"></iframe>`;
+  } else {
+    body.innerHTML = '<div class="empty">Für diesen Coin liegt kein echter Chart vor (Demo-Daten — DexScreener gerade nicht erreichbar).</div>';
+  }
+  document.getElementById('chartModal').classList.add('open');
+}
+function closeChart(){
+  document.getElementById('chartModal').classList.remove('open');
+  document.getElementById('chartModalBody').innerHTML='';
+}
+document.getElementById('chartModal').addEventListener('click', e=>{ if(e.target.id==='chartModal') closeChart(); });
+
+// ---- Manuelles Kaufen / Verkaufen ----
+function manualBuy(address){
+  const sig = state.signals.find(s=>s.address===address);
+  if(!sig){ return; }
+  openPosition({symbol:sig.symbol, address:sig.address, pairAddress:sig.pairAddress, price:sig.price, score:sig.score}, true);
+  save(); render();
+}
+function manualSell(symbol){
+  const p = state.positions.find(x=>x.symbol===symbol);
+  if(!p) return;
+  closePosition(p, 'Manuell verkauft');
+  state.positions = state.positions.filter(x=>x!==p);
+  save(); render();
+}
 
 // ---- KI Wissens-Assistent (lokal, regelbasiert) ----
 const KI_KB = [
@@ -468,6 +549,7 @@ async function fetchRealCoins(){
       if(seen.has(p.baseToken.address)) return; seen.add(p.baseToken.address);
       coins.push({
         symbol: p.baseToken.symbol || '???', address: p.baseToken.address,
+        pairAddress: p.pairAddress || null,
         liquidity: p.liquidity?.usd || 0, mcap: p.fdv || p.marketCap || 1,
         volume24h: p.volume?.h24 || 0, change1h: p.priceChange?.h1 || 0,
         ageHours: p.pairCreatedAt ? (Date.now()-p.pairCreatedAt)/3600000 : 200,
@@ -490,7 +572,7 @@ function demoBatch(){
     const n2=NAME_PARTS[Math.floor(Math.random()*NAME_PARTS.length)];
     const liquidity=Math.round(Math.random()*15000+500);
     const mcap=Math.round(liquidity*(Math.random()*8+2));
-    return {symbol:(n1+n2).slice(0,10), address:fakeAddr(), liquidity, mcap,
+    return {symbol:(n1+n2).slice(0,10), address:fakeAddr(), pairAddress:null, liquidity, mcap,
       volume24h:Math.round(mcap*(Math.random()*1.5)), change1h:+(Math.random()*40-15).toFixed(1),
       ageHours:Math.round(Math.random()*72), buySellRatio:+(Math.random()*4).toFixed(2), price:+(Math.random()*0.01).toFixed(8)};
   });
@@ -501,46 +583,61 @@ async function runScan(){
   const badge = document.getElementById('dataModeBadge');
   if(coins){ badge.textContent='LIVE'; badge.className='datamode live'; }
   else { coins = demoBatch(); badge.textContent='DEMO'; badge.className='datamode demo'; }
-  coins.forEach(c=>{ c.score=scoreCoin(c); c.time=new Date().toLocaleTimeString(); });
+  coins.forEach(c=>{ c.score=scoreCoin(c); c.time=new Date().toLocaleTimeString(); if(c.price) priceMap[c.address]=c.price; });
   state.totalScanned += coins.length;
   coins.sort((a,b)=>b.score-a.score);
   coins.forEach(c=>{
-    const sig={symbol:c.symbol, score:c.score, time:c.time, address:c.address,
+    const sig={symbol:c.symbol, score:c.score, time:c.time, address:c.address, pairAddress:c.pairAddress, price:c.price,
       liquidity:Math.round(c.liquidity), mcap:Math.round(c.mcap), action: c.score>=state.threshold?"KAUF":"ignoriert"};
     state.signals.unshift(sig);
     if(c.score>=state.threshold && state.botRunning) openPosition(c);
   });
-  state.signals = state.signals.slice(0,80);
+  // je Coin nur das neueste Signal behalten (statt jeden Scan zu stapeln), sonst dopplen sich Einträge bei "alle Coins" schnell
+  const dedup=[]; const seenAddr=new Set();
+  state.signals.forEach(s=>{ if(seenAddr.has(s.address)) return; seenAddr.add(s.address); dedup.push(s); });
+  state.signals = dedup.slice(0,200);
   const ticker = document.getElementById('tickerInner');
   ticker.innerHTML = coins.slice(0,15).map(c=>`<span>${c.symbol} <b>${c.score}</b></span>`).join('');
   logMsg(`Scan: ${coins.length} Coins geprüft (${badge.textContent})`);
   save(); render();
 }
-function openPosition(c){
-  if(state.positions.find(p=>p.symbol===c.symbol)) return;
+function openPosition(c, manual){
+  if(state.positions.find(p=>p.symbol===c.symbol)){ if(manual) logMsg(`${c.symbol}: Position bereits offen`); return; }
   const size = state.tradeSize;
   if(state.balance < size){ logMsg(`Zu wenig Balance für ${c.symbol}`); return; }
   state.balance -= size;
-  state.positions.push({symbol:c.symbol, entryPrice:c.price, size, score:c.score, openedAt:Date.now()});
-  logMsg(`Gekauft: ${c.symbol} für ${size} SOL (Score ${c.score})`);
+  state.positions.push({symbol:c.symbol, address:c.address, pairAddress:c.pairAddress, entryPrice:c.price||0, size, score:c.score, pnlPct:0, openedAt:Date.now(), manual: !!manual});
+  logMsg(`${manual?'Manuell gekauft':'Gekauft'}: ${c.symbol} für ${size} SOL (Score ${c.score})`);
+}
+function closePosition(p, reasonOverride){
+  const heldMin=(Date.now()-p.openedAt)/60000;
+  const tp=p.pnlPct>=state.takeProfitPct, sl=p.pnlPct<=state.stopLossPct;
+  const reason = reasonOverride || (tp?"Take-Profit":sl?"Stop-Loss":"Timeout");
+  const pnl=+(p.size*(p.pnlPct/100)).toFixed(4);
+  state.balance += p.size+pnl;
+  state.history.unshift({symbol:p.symbol, size:p.size, pnl, pnlPct:(p.pnlPct||0).toFixed(1),
+    reason, closedAt:new Date().toLocaleTimeString(), day:new Date().toDateString()});
+  logMsg(`Verkauft: ${p.symbol} (${pnl>=0?'+':''}${pnl} SOL, ${reason})`);
+  if(state.history.length && state.history.length % 5 === 0) autoImprove();
 }
 function tickPositions(){
   const stillOpen=[];
   state.positions.forEach(p=>{
     const heldMin=(Date.now()-p.openedAt)/60000;
-    const drift=(Math.random()-0.45)*0.5;
-    p.pnlPct=(p.pnlPct||0)+drift*10;
+    const liveNow = p.address ? priceMap[p.address] : null;
+    if(liveNow && p.entryPrice>0){
+      // echte Preisbewegung aus den letzten Scans statt Zufalls-Simulation
+      p.pnlPct = ((liveNow - p.entryPrice) / p.entryPrice) * 100;
+    } else {
+      // Fallback (Demo-Daten ohne echten Kurs): leichte Zufallsbewegung
+      const drift=(Math.random()-0.45)*0.5;
+      p.pnlPct=(p.pnlPct||0)+drift*10;
+    }
     const tp=p.pnlPct>=state.takeProfitPct, sl=p.pnlPct<=state.stopLossPct, to=heldMin>state.timeoutMin;
-    if(tp||sl||to){
-      const pnl=+(p.size*(p.pnlPct/100)).toFixed(4);
-      state.balance += p.size+pnl;
-      state.history.unshift({symbol:p.symbol, size:p.size, pnl, pnlPct:p.pnlPct.toFixed(1),
-        reason: tp?"Take-Profit":sl?"Stop-Loss":"Timeout", closedAt:new Date().toLocaleTimeString(), day:new Date().toDateString()});
-      logMsg(`Verkauft: ${p.symbol} (${pnl>=0?'+':''}${pnl} SOL, ${tp?'TP':sl?'SL':'Timeout'})`);
-    } else stillOpen.push(p);
+    if(tp||sl||to){ closePosition(p); }
+    else stillOpen.push(p);
   });
   state.positions=stillOpen;
-  if(state.history.length && state.history.length % 5 === 0) autoImprove();
   save(); render();
 }
 
@@ -603,6 +700,9 @@ function render(){
   document.getElementById('thresholdSlider').value = state.threshold;
   document.getElementById('thresholdVal').textContent = state.threshold;
   document.getElementById('thresholdLabel2').textContent = state.threshold;
+  document.getElementById('scoreFilterSlider').value = state.scoreFilter;
+  document.getElementById('scoreFilterVal').textContent = state.scoreFilter;
+  document.getElementById('scoreFilterVal2').textContent = state.scoreFilter;
   document.getElementById('tpLabel').textContent = state.takeProfitPct;
   document.getElementById('slLabel').textContent = state.stopLossPct;
   document.getElementById('toLabel').textContent = state.timeoutMin;
@@ -641,15 +741,25 @@ function render(){
 
   const opEl = document.getElementById('openPositions');
   opEl.innerHTML = state.positions.length ? state.positions.map(p=>`
-    <div class="row">
-      <div><div class="coin">${p.symbol}<span class="tag">SOL</span></div><div class="sub2">${p.size} SOL · Score ${p.score}</div></div>
-      <div class="${(p.pnlPct||0)>=0?'pos':'neg'}">${(p.pnlPct||0)>=0?'+':''}${(p.pnlPct||0).toFixed(1)}%</div>
+    <div class="row" style="flex-direction:column;align-items:stretch;">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+        <div><div class="coin">${p.symbol}<span class="tag">SOL</span></div><div class="sub2">${p.size} SOL · Score ${p.score}${p.manual?' · manuell':''}</div></div>
+        <div class="${(p.pnlPct||0)>=0?'pos':'neg'}">${(p.pnlPct||0)>=0?'+':''}${(p.pnlPct||0).toFixed(1)}%</div>
+      </div>
+      <div class="actrow">
+        <button class="actbtn chart" onclick="openChart(${p.pairAddress?`'${p.pairAddress}'`:null}, '${p.symbol}')">📈 Chart</button>
+        <button class="actbtn sell" onclick="manualSell('${p.symbol}')">Verkaufen</button>
+      </div>
     </div>`).join('') : '<div class="empty">Keine offenen Positionen</div>';
 
   document.getElementById('activityLog').innerHTML = state.log.map(l=>`<div>${l}</div>`).join('') || '<div class="empty">Kein Verlauf</div>';
 
+  const filteredSignals = state.signals.filter(s=>s.score >= state.scoreFilter);
+  document.getElementById('scoreFilterCount').textContent = filteredSignals.length;
   const sigEl = document.getElementById('signalList');
-  sigEl.innerHTML = state.signals.length ? state.signals.slice(0,30).map(s=>`
+  sigEl.innerHTML = filteredSignals.length ? filteredSignals.map(s=>{
+    const hasPos = state.positions.some(p=>p.symbol===s.symbol);
+    return `
     <div class="card sigcard" style="margin-bottom:8px;padding:12px;">
       <div class="row" style="border:none;padding:0 0 6px;">
         <div><div class="coin">${s.symbol}<span class="tag">SOL</span></div><div class="sub2">${s.time} · Liq $${s.liquidity.toLocaleString()} · MCap $${s.mcap.toLocaleString()}</div></div>
@@ -657,7 +767,12 @@ function render(){
       </div>
       <div class="sub2">${s.action}</div>
       <div class="wallet"><span>${s.address}</span><button class="copybtn" onclick="copyText('${s.address}')">kopieren</button></div>
-    </div>`).join('') : '<div class="empty">Noch keine Signale</div>';
+      <div class="actrow">
+        <button class="actbtn chart" onclick="openChart(${s.pairAddress?`'${s.pairAddress}'`:null}, '${s.symbol}')">📈 Chart</button>
+        <button class="actbtn buy" ${hasPos?'disabled':''} onclick="manualBuy('${s.address}')">${hasPos?'Bereits offen':'Kaufen'}</button>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty">Kein Coin über Score '+state.scoreFilter+' — Filter niedriger stellen oder auf nächsten Scan warten.</div>';
 
   const optEl = document.getElementById('optLog');
   if(optEl){
