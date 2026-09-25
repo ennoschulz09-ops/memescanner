@@ -194,6 +194,32 @@
   .modal-body{flex:1;overflow:hidden;position:relative;min-height:360px;}
   .modal-body iframe{width:100%;height:100%;border:0;position:absolute;inset:0;}
   .modal-body .empty{padding:40px 16px;}
+
+  /* ---- Cooler-Upgrades ---- */
+  .flash-win{animation:flashwin .9s ease;}
+  .flash-loss{animation:flashloss .9s ease;}
+  @keyframes flashwin{0%{box-shadow:0 0 0 rgba(0,255,176,0);}25%{box-shadow:0 0 40px rgba(0,255,176,.7);}100%{box-shadow:0 8px 28px rgba(0,0,0,.4);}}
+  @keyframes flashloss{0%{box-shadow:0 0 0 rgba(255,47,109,0);}25%{box-shadow:0 0 40px rgba(255,47,109,.6);}100%{box-shadow:0 8px 28px rgba(0,0,0,.4);}}
+
+  .confetti-layer{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden;}
+  .confetti-piece{position:absolute;top:-30px;font-size:22px;animation:confettifall 1.7s ease-in forwards;}
+  @keyframes confettifall{0%{transform:translateY(0) rotate(0deg);opacity:1;}100%{transform:translateY(110vh) rotate(420deg);opacity:0;}}
+
+  .toast{position:fixed;left:50%;top:14px;transform:translateX(-50%) translateY(-40px);z-index:70;
+    background:rgba(14,15,24,.92);border:1px solid var(--border);border-radius:14px;padding:11px 18px;
+    font-size:13px;font-weight:800;backdrop-filter:blur(10px);box-shadow:0 8px 30px rgba(0,0,0,.5);
+    opacity:0;transition:transform .35s ease, opacity .35s ease;white-space:nowrap;}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+  .toast.win{color:var(--green);border-color:rgba(0,255,176,.4);}
+  .toast.loss{color:var(--red);border-color:rgba(255,47,109,.4);}
+
+  .streakbar{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:800;margin-top:8px;color:var(--muted);}
+  .streakbar .flames{color:var(--yellow);text-shadow:0 0 10px rgba(255,210,63,.6);}
+
+  .fireicon{margin-left:3px;filter:drop-shadow(0 0 6px rgba(255,140,0,.7));}
+
+  .soundpill{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 13px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;}
+  .soundpill.on{border-color:var(--p3);color:var(--p3);box-shadow:0 0 14px rgba(34,211,238,.25);}
 </style>
 </head>
 <body>
@@ -212,6 +238,7 @@
   <input class="search" placeholder="Suche Symbol / Adresse" id="searchInput">
   <div class="pill" id="riskFilter">ohne Risiko</div>
   <div class="pill on" id="alarmToggle">🔔 aktiv</div>
+  <div class="soundpill" id="soundToggle">🔊 Sound</div>
 </div>
 
 <main>
@@ -226,6 +253,7 @@
         </div>
         <div class="switch" id="botSwitch"></div>
       </div>
+      <div class="streakbar" id="streakBar"></div>
     </div>
     <div class="grid2" style="margin-bottom:12px;">
       <div class="mini"><div class="l">Paper-Wallet</div><div class="v" id="balanceDisplay">2.00 SOL</div></div>
@@ -266,6 +294,9 @@
       <div class="modal-body" id="chartModalBody"></div>
     </div>
   </div>
+
+  <div class="confetti-layer" id="confettiLayer"></div>
+  <div class="toast" id="toastBox"></div>
 
   <!-- TRADING (Paper-Trading + Stats zusammen) -->
   <section id="trading" style="display:none;">
@@ -363,13 +394,14 @@ const STORAGE_KEY = "smartlab_state_v3";
 let state = load() || {
   balance: 2.0, startBalance: 2.0, botRunning: false, threshold: 70, tradeSize: 0.5,
   positions: [], history: [], signals: [], log: [], totalScanned: 0,
-  stopLossPct: -20, takeProfitPct: 20, timeoutMin: 15, improvements: [], scoreFilter: 50
+  stopLossPct: -20, takeProfitPct: 20, timeoutMin: 15, improvements: [], scoreFilter: 50, soundOn: false
 };
 if(state.stopLossPct===undefined) state.stopLossPct=-20;
 state.takeProfitPct = 20; // Take-Profit fix auf +20% (vorher 60% — Positionen liefen zu lange, bevor verkauft wurde)
 if(state.timeoutMin===undefined) state.timeoutMin=15;
 if(state.improvements===undefined) state.improvements=[];
 if(state.scoreFilter===undefined) state.scoreFilter=50;
+if(state.soundOn===undefined) state.soundOn=false;
 let priceMap = {}; // address -> latest real price from most recent scan (not persisted)
 function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
@@ -392,6 +424,79 @@ document.getElementById('sizeButtons').addEventListener('click', e=>{
   state.tradeSize = parseFloat(b.dataset.size); save();
 });
 function copyText(t){ navigator.clipboard && navigator.clipboard.writeText(t); }
+
+// ---- Sound-Toggle ----
+document.getElementById('soundToggle').addEventListener('click', e=>{
+  state.soundOn = !state.soundOn;
+  e.target.classList.toggle('on', state.soundOn);
+  if(state.soundOn) playTone(660,0.08,'sine');
+  save();
+});
+
+// ---- Mini-Sound-Engine (Web Audio, keine Dateien nötig) ----
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } }
+  return audioCtx;
+}
+function playTone(freq, dur, type){
+  if(!state.soundOn) return;
+  const ctx = getAudioCtx(); if(!ctx) return;
+  const osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = type||'sine'; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.001, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(); osc.stop(ctx.currentTime+dur);
+}
+function playBuySound(){ playTone(520,0.12,'triangle'); }
+function playWinSound(){ playTone(660,0.1,'sine'); setTimeout(()=>playTone(880,0.16,'sine'),90); }
+function playLossSound(){ playTone(300,0.14,'sawtooth'); setTimeout(()=>playTone(200,0.18,'sawtooth'),100); }
+
+// ---- Konfetti + Toast bei abgeschlossenem Trade ----
+const CONFETTI_EMOJI = ['🚀','💰','🔥','✨','🟢'];
+function fireConfetti(){
+  const layer = document.getElementById('confettiLayer');
+  for(let i=0;i<22;i++){
+    const s = document.createElement('span');
+    s.className='confetti-piece';
+    s.textContent = CONFETTI_EMOJI[Math.floor(Math.random()*CONFETTI_EMOJI.length)];
+    s.style.left = Math.random()*100+'vw';
+    s.style.animationDelay = (Math.random()*0.4)+'s';
+    s.style.fontSize = (16+Math.random()*14)+'px';
+    layer.appendChild(s);
+    setTimeout(()=>s.remove(), 2200);
+  }
+}
+let toastTimer=null;
+function showToast(text, cls){
+  const t = document.getElementById('toastBox');
+  t.textContent = text; t.className = 'toast '+cls;
+  requestAnimationFrame(()=>t.classList.add('show'));
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+function celebrateTrade(symbol, pnl, pnlPct){
+  if(pnl>0){
+    showToast(`🚀 ${symbol} verkauft: +${pnl.toFixed(3)} SOL (+${pnlPct}%)`,'win');
+    if(pnlPct>=15) fireConfetti();
+    playWinSound();
+  } else {
+    showToast(`📉 ${symbol} verkauft: ${pnl.toFixed(3)} SOL (${pnlPct}%)`,'loss');
+    playLossSound();
+  }
+}
+function currentStreak(){
+  let n=0, dir=0;
+  for(const h of state.history){
+    const w = h.pnl>0;
+    if(dir===0){ dir = w?1:-1; n=1; }
+    else if((w&&dir===1)||(!w&&dir===-1)){ n++; }
+    else break;
+  }
+  return {n, win: dir===1};
+}
 
 document.getElementById('scoreFilterSlider').addEventListener('input', e=>{
   state.scoreFilter = +e.target.value;
@@ -417,20 +522,7 @@ function closeChart(){
 }
 document.getElementById('chartModal').addEventListener('click', e=>{ if(e.target.id==='chartModal') closeChart(); });
 
-// ---- Manuelles Kaufen / Verkaufen ----
-function manualBuy(address){
-  const sig = state.signals.find(s=>s.address===address);
-  if(!sig){ return; }
-  openPosition({symbol:sig.symbol, address:sig.address, pairAddress:sig.pairAddress, price:sig.price, score:sig.score}, true);
-  save(); render();
-}
-function manualSell(symbol){
-  const p = state.positions.find(x=>x.symbol===symbol);
-  if(!p) return;
-  closePosition(p, 'Manuell verkauft');
-  state.positions = state.positions.filter(x=>x!==p);
-  save(); render();
-}
+
 
 // ---- KI Wissens-Assistent (lokal, regelbasiert) ----
 const KI_KB = [
@@ -608,6 +700,7 @@ function openPosition(c, manual){
   state.balance -= size;
   state.positions.push({symbol:c.symbol, address:c.address, pairAddress:c.pairAddress, entryPrice:c.price||0, size, score:c.score, pnlPct:0, openedAt:Date.now(), manual: !!manual});
   logMsg(`${manual?'Manuell gekauft':'Gekauft'}: ${c.symbol} für ${size} SOL (Score ${c.score})`);
+  playBuySound();
 }
 function closePosition(p, reasonOverride){
   const heldMin=(Date.now()-p.openedAt)/60000;
@@ -618,6 +711,7 @@ function closePosition(p, reasonOverride){
   state.history.unshift({symbol:p.symbol, size:p.size, pnl, pnlPct:(p.pnlPct||0).toFixed(1),
     reason, closedAt:new Date().toLocaleTimeString(), day:new Date().toDateString()});
   logMsg(`Verkauft: ${p.symbol} (${pnl>=0?'+':''}${pnl} SOL, ${reason})`);
+  celebrateTrade(p.symbol, pnl, (p.pnlPct||0).toFixed(1));
   if(state.history.length && state.history.length % 5 === 0) autoImprove();
 }
 function tickPositions(){
@@ -693,8 +787,24 @@ function scoreClass(s){ return s>=70?'high':s>=50?'mid':'low'; }
 function render(){
   document.getElementById('cntSOL').textContent = state.totalScanned;
   document.getElementById('totalScanned').textContent = state.totalScanned;
-  document.getElementById('balanceDisplay').textContent = state.balance.toFixed(2)+" SOL";
+  const balEl = document.getElementById('balanceDisplay');
+  const newBalTxt = state.balance.toFixed(2)+" SOL";
+  if(balEl.textContent !== newBalTxt && balEl.textContent !== ""){
+    const card = balEl.closest('.mini');
+    const went_up = state.balance > (window.__lastBalance ?? state.balance);
+    card.classList.remove('flash-win','flash-loss');
+    void card.offsetWidth;
+    card.classList.add(went_up ? 'flash-win' : 'flash-loss');
+  }
+  window.__lastBalance = state.balance;
+  balEl.textContent = newBalTxt;
   document.getElementById('ptBalance').textContent = state.balance.toFixed(2)+" SOL";
+  document.getElementById('soundToggle').classList.toggle('on', state.soundOn);
+  const streak = currentStreak();
+  const streakBar = document.getElementById('streakBar');
+  streakBar.innerHTML = streak.n>=2
+    ? `<span class="flames">${streak.win?'🔥':'🧊'}</span> ${streak.win?'Gewinnserie':'Verlustserie'}: ${streak.n} in Folge`
+    : '';
   document.getElementById('botSwitch').className = 'switch'+(state.botRunning?' on':'');
   document.getElementById('botStatusText').textContent = state.botRunning?'läuft — scannt live':'gestoppt';
   document.getElementById('thresholdSlider').value = state.threshold;
@@ -748,7 +858,6 @@ function render(){
       </div>
       <div class="actrow">
         <button class="actbtn chart" onclick="openChart(${p.pairAddress?`'${p.pairAddress}'`:null}, '${p.symbol}')">📈 Chart</button>
-        <button class="actbtn sell" onclick="manualSell('${p.symbol}')">Verkaufen</button>
       </div>
     </div>`).join('') : '<div class="empty">Keine offenen Positionen</div>';
 
@@ -758,18 +867,16 @@ function render(){
   document.getElementById('scoreFilterCount').textContent = filteredSignals.length;
   const sigEl = document.getElementById('signalList');
   sigEl.innerHTML = filteredSignals.length ? filteredSignals.map(s=>{
-    const hasPos = state.positions.some(p=>p.symbol===s.symbol);
     return `
     <div class="card sigcard" style="margin-bottom:8px;padding:12px;">
       <div class="row" style="border:none;padding:0 0 6px;">
         <div><div class="coin">${s.symbol}<span class="tag">SOL</span></div><div class="sub2">${s.time} · Liq $${s.liquidity.toLocaleString()} · MCap $${s.mcap.toLocaleString()}</div></div>
-        <div class="score ${scoreClass(s.score)}">${s.score}</div>
+        <div class="score ${scoreClass(s.score)}">${s.score}${s.score>=85?'<span class="fireicon">🔥</span>':''}</div>
       </div>
       <div class="sub2">${s.action}</div>
       <div class="wallet"><span>${s.address}</span><button class="copybtn" onclick="copyText('${s.address}')">kopieren</button></div>
       <div class="actrow">
         <button class="actbtn chart" onclick="openChart(${s.pairAddress?`'${s.pairAddress}'`:null}, '${s.symbol}')">📈 Chart</button>
-        <button class="actbtn buy" ${hasPos?'disabled':''} onclick="manualBuy('${s.address}')">${hasPos?'Bereits offen':'Kaufen'}</button>
       </div>
     </div>`;
   }).join('') : '<div class="empty">Kein Coin über Score '+state.scoreFilter+' — Filter niedriger stellen oder auf nächsten Scan warten.</div>';
