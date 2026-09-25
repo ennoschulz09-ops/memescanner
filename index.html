@@ -220,6 +220,57 @@
 
   .soundpill{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 13px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;}
   .soundpill.on{border-color:var(--p3);color:var(--p3);box-shadow:0 0 14px rgba(34,211,238,.25);}
+
+  /* ---- Avatare ---- */
+  .avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:12px;color:#fff;flex-shrink:0;text-shadow:0 1px 2px rgba(0,0,0,.4);
+    box-shadow:0 2px 8px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.25);}
+  .rowhead{display:flex;align-items:center;gap:10px;}
+
+  /* ---- Sparklines ---- */
+  .spark{flex-shrink:0;display:block;}
+
+  /* ---- Zeit-seit-Kauf ---- */
+  .heldtime{font-size:10px;color:var(--muted);margin-top:2px;}
+  .heldtime.warn{color:var(--yellow);}
+
+  /* ---- Skeleton Loading ---- */
+  .skeleton{background:linear-gradient(90deg, rgba(255,255,255,.04) 25%, rgba(255,255,255,.09) 37%, rgba(255,255,255,.04) 63%);
+    background-size:400% 100%;animation:shimmer 1.4s ease infinite;border-radius:8px;}
+  @keyframes shimmer{0%{background-position:100% 50%;}100%{background-position:0% 50%;}}
+  .skel-card{padding:12px;margin-bottom:8px;}
+  .skel-row{display:flex;gap:10px;align-items:center;margin-bottom:10px;}
+  .skel-circle{width:34px;height:34px;border-radius:50%;flex-shrink:0;}
+  .skel-line{height:11px;border-radius:6px;}
+
+  /* ---- Equity-Chart & Bar-Chart ---- */
+  .equitywrap{width:100%;overflow:hidden;}
+  .equitywrap svg{display:block;width:100%;height:auto;}
+  .barchart{display:flex;align-items:flex-end;gap:6px;height:80px;margin-top:10px;}
+  .barchart .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;}
+  .barchart .bar{width:100%;border-radius:5px 5px 2px 2px;min-height:3px;}
+  .barchart .bar.pos{background:linear-gradient(180deg,var(--green),#00c98a);box-shadow:0 0 10px rgba(0,255,176,.35);}
+  .barchart .bar.neg{background:linear-gradient(180deg,var(--red),#c91f52);box-shadow:0 0 10px rgba(255,47,109,.3);}
+  .barchart .bar-lbl{font-size:9px;color:var(--muted);}
+
+  /* ---- Theme-Toggle (Light Mode) ---- */
+  .themepill{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:14px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  :root[data-theme="light"]{
+    --bg:#f3f4fa; --panel:#ffffff; --panel2:#f0f1f8; --border:#dcdfec;
+    --text:#12131c; --muted:#6b7086;
+  }
+  :root[data-theme="light"] body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(147,51,234,.14), transparent 40%),
+      radial-gradient(circle at 90% 15%, rgba(236,72,153,.12), transparent 38%),
+      radial-gradient(circle at 50% 100%, rgba(34,211,238,.10), transparent 45%),
+      radial-gradient(circle at 100% 60%, rgba(0,255,176,.08), transparent 35%),
+      var(--bg);
+  }
+  :root[data-theme="light"] header{background:rgba(243,244,250,.75);}
+  :root[data-theme="light"] .card{background:rgba(255,255,255,.75);box-shadow:0 8px 24px rgba(20,20,40,.08), inset 0 1px 0 rgba(255,255,255,.6);}
+  :root[data-theme="light"] nav{background:rgba(255,255,255,.8);}
+  :root[data-theme="light"] .mini{background:var(--panel2);}
 </style>
 </head>
 <body>
@@ -239,6 +290,7 @@
   <div class="pill" id="riskFilter">ohne Risiko</div>
   <div class="pill on" id="alarmToggle">🔔 aktiv</div>
   <div class="soundpill" id="soundToggle">🔊 Sound</div>
+  <div class="themepill" id="themeToggle">🌙</div>
 </div>
 
 <main>
@@ -333,6 +385,14 @@
       <div class="bignum" id="totalPnlBig">+0.00 SOL</div>
       <div class="sub2" id="totalPnlPct">+0% Gesamt</div>
     </div>
+    <div class="card">
+      <h3>Kontostand-Verlauf</h3>
+      <div class="equitywrap" id="equityChart"></div>
+    </div>
+    <div class="card">
+      <h3>Letzte 7 Tage</h3>
+      <div class="barchart" id="dailyBarChart"></div>
+    </div>
     <div class="grid3" style="margin-bottom:12px;">
       <div class="mini"><div class="l">Heute</div><div class="v" id="statToday">+0</div></div>
       <div class="mini"><div class="l">7 Tage</div><div class="v" id="stat7d">+0</div></div>
@@ -394,7 +454,8 @@ const STORAGE_KEY = "smartlab_state_v3";
 let state = load() || {
   balance: 2.0, startBalance: 2.0, botRunning: false, threshold: 70, tradeSize: 0.5,
   positions: [], history: [], signals: [], log: [], totalScanned: 0,
-  stopLossPct: -20, takeProfitPct: 20, timeoutMin: 15, improvements: [], scoreFilter: 50, soundOn: false
+  stopLossPct: -20, takeProfitPct: 20, timeoutMin: 15, improvements: [], scoreFilter: 50, soundOn: false,
+  priceHistory: {}, equityHistory: [], theme: 'dark'
 };
 if(state.stopLossPct===undefined) state.stopLossPct=-20;
 state.takeProfitPct = 20; // Take-Profit fix auf +20% (vorher 60% — Positionen liefen zu lange, bevor verkauft wurde)
@@ -402,6 +463,11 @@ if(state.timeoutMin===undefined) state.timeoutMin=15;
 if(state.improvements===undefined) state.improvements=[];
 if(state.scoreFilter===undefined) state.scoreFilter=50;
 if(state.soundOn===undefined) state.soundOn=false;
+if(state.priceHistory===undefined) state.priceHistory={};
+if(state.equityHistory===undefined) state.equityHistory=[{t:Date.now(), b:state.balance}];
+if(state.theme===undefined) state.theme='dark';
+document.documentElement.setAttribute('data-theme', state.theme);
+document.addEventListener('DOMContentLoaded', ()=>{ const tb=document.getElementById('themeToggle'); if(tb) tb.textContent = state.theme==='light' ? '☀️' : '🌙'; });
 let priceMap = {}; // address -> latest real price from most recent scan (not persisted)
 function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):null; }catch(e){ return null; } }
@@ -425,7 +491,12 @@ document.getElementById('sizeButtons').addEventListener('click', e=>{
 });
 function copyText(t){ navigator.clipboard && navigator.clipboard.writeText(t); }
 
-// ---- Sound-Toggle ----
+document.getElementById('themeToggle').addEventListener('click', ()=>{
+  state.theme = state.theme==='light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+  document.getElementById('themeToggle').textContent = state.theme==='light' ? '☀️' : '🌙';
+  save();
+});
 document.getElementById('soundToggle').addEventListener('click', e=>{
   state.soundOn = !state.soundOn;
   e.target.classList.toggle('on', state.soundOn);
@@ -496,6 +567,102 @@ function currentStreak(){
     else break;
   }
   return {n, win: dir===1};
+}
+
+// ---- Avatar (generierter Farbverlauf pro Symbol) ----
+function symbolHue(sym){
+  let h=0; for(let i=0;i<sym.length;i++) h = (h*31 + sym.charCodeAt(i)) % 360;
+  return h;
+}
+function avatarHTML(sym){
+  const s = (sym||'??').toUpperCase();
+  const hue = symbolHue(s);
+  const initials = s.replace(/[^A-Z0-9]/g,'').slice(0,2) || s.slice(0,2);
+  return `<div class="avatar" style="background:linear-gradient(135deg, hsl(${hue},70%,45%), hsl(${(hue+50)%360},75%,40%));">${initials}</div>`;
+}
+
+// ---- Sparkline (letzte Preis-/Score-Punkte als Mini-SVG) ----
+function sparklineSVG(values){
+  if(!values || values.length<2) return `<svg class="spark" width="64" height="24" viewBox="0 0 64 24"><line x1="0" y1="12" x2="64" y2="12" stroke="var(--border)" stroke-width="1.5"/></svg>`;
+  const min=Math.min(...values), max=Math.max(...values);
+  const range = (max-min)||1;
+  const w=64,h=24,pad=2;
+  const pts = values.map((v,i)=>{
+    const x = pad + (i/(values.length-1))*(w-pad*2);
+    const y = h-pad - ((v-min)/range)*(h-pad*2);
+    return x.toFixed(1)+","+y.toFixed(1);
+  }).join(' ');
+  const up = values[values.length-1] >= values[0];
+  const color = up ? 'var(--green)' : 'var(--red)';
+  return `<svg class="spark" width="64" height="24" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function pushPriceHistory(address, price){
+  if(!price) return;
+  if(!state.priceHistory[address]) state.priceHistory[address]=[];
+  const arr = state.priceHistory[address];
+  arr.push(price);
+  if(arr.length>20) arr.shift();
+}
+
+// ---- Zeit-seit-Kauf ----
+function timeAgo(ts){
+  const sec = Math.floor((Date.now()-ts)/1000);
+  if(sec<60) return 'gerade eben';
+  const min = Math.floor(sec/60);
+  if(min<60) return `vor ${min} Min`;
+  const hrs = Math.floor(min/60);
+  return `vor ${hrs} Std`;
+}
+
+// ---- Equity-Chart ----
+function recordEquity(){
+  state.equityHistory.push({t:Date.now(), b:state.balance});
+  if(state.equityHistory.length>60) state.equityHistory.shift();
+}
+function renderEquityChart(){
+  const el = document.getElementById('equityChart');
+  const data = state.equityHistory;
+  if(!el) return;
+  if(data.length<2){ el.innerHTML = '<div class="empty">Noch kein Verlauf — braucht ein paar Trades.</div>'; return; }
+  const w=300,h=90,pad=6;
+  const vals = data.map(d=>d.b);
+  const min=Math.min(...vals), max=Math.max(...vals);
+  const range=(max-min)||1;
+  const pts = data.map((d,i)=>{
+    const x = pad + (i/(data.length-1))*(w-pad*2);
+    const y = h-pad - ((d.b-min)/range)*(h-pad*2);
+    return x.toFixed(1)+","+y.toFixed(1);
+  }).join(' ');
+  const up = vals[vals.length-1] >= vals[0];
+  const color = up ? 'var(--green)' : 'var(--red)';
+  const areaPts = `${pad},${h-pad} ${pts} ${w-pad},${h-pad}`;
+  el.innerHTML = `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${areaPts}" fill="${up?'rgba(0,255,176,.12)':'rgba(255,47,109,.12)'}" stroke="none"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ---- Tages-Bar-Chart (letzte 7 Tage) ----
+function renderDailyBarChart(){
+  const el = document.getElementById('dailyBarChart');
+  if(!el) return;
+  const days = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    days.push({key:d.toDateString(), label:d.toLocaleDateString('de-DE',{weekday:'short'})});
+  }
+  const pnlByDay = {};
+  days.forEach(d=>pnlByDay[d.key]=0);
+  state.history.forEach(h=>{ if(pnlByDay[h.day]!==undefined) pnlByDay[h.day]+=h.pnl; });
+  const maxAbs = Math.max(0.001, ...days.map(d=>Math.abs(pnlByDay[d.key])));
+  el.innerHTML = days.map(d=>{
+    const v = pnlByDay[d.key];
+    const pct = Math.max(6, Math.round((Math.abs(v)/maxAbs)*100));
+    return `<div class="bar-col">
+      <div class="bar ${v>=0?'pos':'neg'}" style="height:${pct}%;"></div>
+      <div class="bar-lbl">${d.label}</div>
+    </div>`;
+  }).join('');
 }
 
 document.getElementById('scoreFilterSlider').addEventListener('input', e=>{
@@ -675,7 +842,7 @@ async function runScan(){
   const badge = document.getElementById('dataModeBadge');
   if(coins){ badge.textContent='LIVE'; badge.className='datamode live'; }
   else { coins = demoBatch(); badge.textContent='DEMO'; badge.className='datamode demo'; }
-  coins.forEach(c=>{ c.score=scoreCoin(c); c.time=new Date().toLocaleTimeString(); if(c.price) priceMap[c.address]=c.price; });
+  coins.forEach(c=>{ c.score=scoreCoin(c); c.time=new Date().toLocaleTimeString(); if(c.price) priceMap[c.address]=c.price; pushPriceHistory(c.address, c.price||c.score); });
   state.totalScanned += coins.length;
   coins.sort((a,b)=>b.score-a.score);
   coins.forEach(c=>{
@@ -701,6 +868,7 @@ function openPosition(c, manual){
   state.positions.push({symbol:c.symbol, address:c.address, pairAddress:c.pairAddress, entryPrice:c.price||0, size, score:c.score, pnlPct:0, openedAt:Date.now(), manual: !!manual});
   logMsg(`${manual?'Manuell gekauft':'Gekauft'}: ${c.symbol} für ${size} SOL (Score ${c.score})`);
   playBuySound();
+  recordEquity();
 }
 function closePosition(p, reasonOverride){
   const heldMin=(Date.now()-p.openedAt)/60000;
@@ -712,6 +880,7 @@ function closePosition(p, reasonOverride){
     reason, closedAt:new Date().toLocaleTimeString(), day:new Date().toDateString()});
   logMsg(`Verkauft: ${p.symbol} (${pnl>=0?'+':''}${pnl} SOL, ${reason})`);
   celebrateTrade(p.symbol, pnl, (p.pnlPct||0).toFixed(1));
+  recordEquity();
   if(state.history.length && state.history.length % 5 === 0) autoImprove();
 }
 function tickPositions(){
@@ -850,36 +1019,66 @@ function render(){
   document.getElementById('avgPnl').textContent = (avg>=0?'+':'')+avg.toFixed(3);
 
   const opEl = document.getElementById('openPositions');
-  opEl.innerHTML = state.positions.length ? state.positions.map(p=>`
+  opEl.innerHTML = state.positions.length ? state.positions.map(p=>{
+    const heldMin = (Date.now()-p.openedAt)/60000;
+    const nearTimeout = heldMin > state.timeoutMin*0.7;
+    return `
     <div class="row" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
-        <div><div class="coin">${p.symbol}<span class="tag">SOL</span></div><div class="sub2">${p.size} SOL · Score ${p.score}${p.manual?' · manuell':''}</div></div>
+        <div class="rowhead">
+          ${avatarHTML(p.symbol)}
+          <div><div class="coin">${p.symbol}<span class="tag">SOL</span></div><div class="sub2">${p.size} SOL · Score ${p.score}${p.manual?' · manuell':''}</div><div class="heldtime${nearTimeout?' warn':''}">${timeAgo(p.openedAt)}${nearTimeout?' · bald Timeout':''}</div></div>
+        </div>
         <div class="${(p.pnlPct||0)>=0?'pos':'neg'}">${(p.pnlPct||0)>=0?'+':''}${(p.pnlPct||0).toFixed(1)}%</div>
       </div>
       <div class="actrow">
         <button class="actbtn chart" onclick="openChart(${p.pairAddress?`'${p.pairAddress}'`:null}, '${p.symbol}')">📈 Chart</button>
       </div>
-    </div>`).join('') : '<div class="empty">Keine offenen Positionen</div>';
+    </div>`;
+  }).join('') : '<div class="empty">Keine offenen Positionen</div>';
 
   document.getElementById('activityLog').innerHTML = state.log.map(l=>`<div>${l}</div>`).join('') || '<div class="empty">Kein Verlauf</div>';
 
   const filteredSignals = state.signals.filter(s=>s.score >= state.scoreFilter);
   document.getElementById('scoreFilterCount').textContent = filteredSignals.length;
   const sigEl = document.getElementById('signalList');
-  sigEl.innerHTML = filteredSignals.length ? filteredSignals.map(s=>{
-    return `
-    <div class="card sigcard" style="margin-bottom:8px;padding:12px;">
-      <div class="row" style="border:none;padding:0 0 6px;">
-        <div><div class="coin">${s.symbol}<span class="tag">SOL</span></div><div class="sub2">${s.time} · Liq $${s.liquidity.toLocaleString()} · MCap $${s.mcap.toLocaleString()}</div></div>
-        <div class="score ${scoreClass(s.score)}">${s.score}${s.score>=85?'<span class="fireicon">🔥</span>':''}</div>
-      </div>
-      <div class="sub2">${s.action}</div>
-      <div class="wallet"><span>${s.address}</span><button class="copybtn" onclick="copyText('${s.address}')">kopieren</button></div>
-      <div class="actrow">
-        <button class="actbtn chart" onclick="openChart(${s.pairAddress?`'${s.pairAddress}'`:null}, '${s.symbol}')">📈 Chart</button>
-      </div>
-    </div>`;
-  }).join('') : '<div class="empty">Kein Coin über Score '+state.scoreFilter+' — Filter niedriger stellen oder auf nächsten Scan warten.</div>';
+  if(state.totalScanned===0){
+    sigEl.innerHTML = Array.from({length:4}).map(()=>`
+      <div class="card skel-card">
+        <div class="skel-row">
+          <div class="skeleton skel-circle"></div>
+          <div style="flex:1;">
+            <div class="skeleton skel-line" style="width:40%;margin-bottom:6px;"></div>
+            <div class="skeleton skel-line" style="width:70%;"></div>
+          </div>
+          <div class="skeleton skel-line" style="width:34px;height:22px;"></div>
+        </div>
+        <div class="skeleton skel-line" style="width:100%;height:26px;"></div>
+      </div>`).join('');
+  } else {
+    sigEl.innerHTML = filteredSignals.length ? filteredSignals.map(s=>{
+      return `
+      <div class="card sigcard" style="margin-bottom:8px;padding:12px;">
+        <div class="row" style="border:none;padding:0 0 6px;">
+          <div class="rowhead">
+            ${avatarHTML(s.symbol)}
+            <div><div class="coin">${s.symbol}<span class="tag">SOL</span></div><div class="sub2">${s.time} · Liq $${s.liquidity.toLocaleString()} · MCap $${s.mcap.toLocaleString()}</div></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${sparklineSVG(state.priceHistory[s.address])}
+            <div class="score ${scoreClass(s.score)}">${s.score}${s.score>=85?'<span class="fireicon">🔥</span>':''}</div>
+          </div>
+        </div>
+        <div class="sub2">${s.action}</div>
+        <div class="wallet"><span>${s.address}</span><button class="copybtn" onclick="copyText('${s.address}')">kopieren</button></div>
+        <div class="actrow">
+          <button class="actbtn chart" onclick="openChart(${s.pairAddress?`'${s.pairAddress}'`:null}, '${s.symbol}')">📈 Chart</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">Kein Coin über Score '+state.scoreFilter+' — Filter niedriger stellen oder auf nächsten Scan warten.</div>';
+  }
+  renderEquityChart();
+  renderDailyBarChart();
 
   const optEl = document.getElementById('optLog');
   if(optEl){
@@ -891,7 +1090,7 @@ function render(){
   const histEl = document.getElementById('tradeHistory');
   histEl.innerHTML = state.history.length ? state.history.map(h=>`
     <div class="row">
-      <div><div class="coin">${h.symbol}</div><div class="sub2">${h.reason} · ${h.closedAt}</div></div>
+      <div class="rowhead">${avatarHTML(h.symbol)}<div><div class="coin">${h.symbol}</div><div class="sub2">${h.reason} · ${h.closedAt}</div></div></div>
       <div class="${h.pnl>=0?'pos':'neg'}">${h.pnl>=0?'+':''}${h.pnl.toFixed(3)} SOL</div>
     </div>`).join('') : '<div class="empty">Noch keine abgeschlossenen Trades</div>';
 }
